@@ -101,7 +101,6 @@ let s = {
   friendsLoaded  : false,
   quests         : [],
   questsLoaded   : false,
-  questBusyId    : null,
   conversations       : [],
   conversationsLoaded : false,
   activeChatPublicId  : null,
@@ -185,7 +184,6 @@ function logout(){
   s.friendsLoaded = false;
   s.quests = [];
   s.questsLoaded = false;
-  s.questBusyId = null;
   s.conversations = [];
   s.conversationsLoaded = false;
   s.activeChatPublicId = null;
@@ -442,27 +440,6 @@ async function fetchQuests(){
   }
 }
 
-async function completeQuest(questId){
-  if (s.questBusyId) return;
-  s.questBusyId = questId;
-  render();
-  try {
-    const res = await authFetch(`${API_URL}/quests/${encodeURIComponent(questId)}/complete`, { method: "POST" });
-    if (res.ok) {
-      const data = await res.json();
-      s.quests = data.quests || s.quests;
-    } else {
-      const data = await res.json().catch(() => ({}));
-      alert("Không thể hoàn thành nhiệm vụ: " + (data.detail || "lỗi không rõ"));
-    }
-  } catch (err) {
-    alert("Không kết nối được tới máy chủ Backend!");
-  } finally {
-    s.questBusyId = null;
-    render();
-  }
-}
-
 function questsView(){
   const total = s.quests.length;
   const done = s.quests.filter(q => q.done).length;
@@ -476,7 +453,7 @@ function questsView(){
       </div>
       ${q.done
         ? `<span class="quest-status">Đã hoàn thành</span>`
-        : `<button type="button" class="friend-btn friend-btn-accept" ${s.questBusyId === q.id ? "disabled" : ""} onclick="completeQuest(${Number(q.id)})">Hoàn thành</button>`}
+        : `<span class="quest-status quest-status-pending">Chưa hoàn thành</span>`}
     </div>`).join("");
 
   const emptyHtml = `<div class="nav-search-empty" style="padding:2rem 1rem">
@@ -490,6 +467,7 @@ function questsView(){
       <section class="section">
         <div class="section-title">Nhiệm vụ</div>
         <h3>Hoàn thành nhiệm vụ (${done}/${total})</h3>
+        <div class="quest-hint">Nhiệm vụ được hệ thống tự ghi nhận khi bạn hoàn thành. Làm xong quay lại trang này để xem.</div>
         <div class="quest-progress"><div class="quest-progress-bar" style="width:${pct}%"></div></div>
         <div class="leaderboard quest-list">${rowsHtml || emptyHtml}</div>
       </section>
