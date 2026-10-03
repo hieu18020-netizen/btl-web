@@ -729,3 +729,18 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
 @media(max-width:600px){
   .chibi-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 }
+
+/* ===== Nhiệm vụ ===== */
+.quest-progress{height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin:.5rem 0 1.2rem}
+.quest-progress-bar{height:100%;border-radius:6px;background:var(--accent-grad);transition:width .4s ease}
+.quest-list{overflow-y:auto}
+.quest-row{display:flex;align-items:center;gap:.9rem;padding:.8rem 1rem;border-bottom:1px solid rgba(255,255,255,.08);transition:background .15s}
+.quest-row:last-child{border-bottom:0}
+.quest-row:hover{background:rgba(139,92,246,.06)}
+.quest-index{flex:0 0 34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;color:#8b5cf6;background:rgba(139,92,246,.14);border:1px solid rgba(139,92,246,.35)}
+.quest-info{flex:1;min-width:0}
+.quest-title{font-weight:600;font-size:15px}
+.quest-desc{font-size:13px;color:rgba(255,255,255,.55);margin-top:2px}
+.quest-status{font-size:12px;font-weight:600;color:#34d399;white-space:nowrap}
+.quest-row.done .quest-index{color:#34d399;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.4)}
+.quest-row.done .quest-title{text-decoration:line-through;opacity:.65}
