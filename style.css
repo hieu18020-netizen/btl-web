@@ -744,3 +744,5 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
 .quest-status{font-size:12px;font-weight:600;color:#34d399;white-space:nowrap}
 .quest-row.done .quest-index{color:#34d399;background:rgba(52,211,153,.14);border-color:rgba(52,211,153,.4)}
 .quest-row.done .quest-title{text-decoration:line-through;opacity:.65}
+.quest-status-pending{color:rgba(255,255,255,.45)}
+.quest-hint{font-size:13px;color:rgba(255,255,255,.55);margin:.25rem 0 .6rem}
