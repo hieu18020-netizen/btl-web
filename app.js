@@ -99,6 +99,9 @@ let s = {
   friendsIncoming: [],
   friendsOutgoing: [],
   friendsLoaded  : false,
+  quests         : [],
+  questsLoaded   : false,
+  questBusyId    : null,
   conversations       : [],
   conversationsLoaded : false,
   activeChatPublicId  : null,
@@ -130,7 +133,7 @@ function applyChibiRunnerState(){
 // Backend hiện không có token phiên, nên ta chỉ lưu username + dữ liệu hiển thị (không lưu mật khẩu),
 // rồi khi tải lại trang sẽ gọi API để xác thực & làm mới dữ liệu.
 const SESSION_KEY = "gz_session";
-const RESTORABLE_VIEWS = ["home", "games", "game", "friends", "messages", "chibi"]; // các view hợp lệ để khôi phục sau F5
+const RESTORABLE_VIEWS = ["home", "games", "game", "friends", "messages", "chibi", "quests"]; // các view hợp lệ để khôi phục sau F5
 
 function saveSession(){
   if (!s.username) return;
@@ -180,6 +183,9 @@ function logout(){
   s.friendsIncoming = [];
   s.friendsOutgoing = [];
   s.friendsLoaded = false;
+  s.quests = [];
+  s.questsLoaded = false;
+  s.questBusyId = null;
   s.conversations = [];
   s.conversationsLoaded = false;
   s.activeChatPublicId = null;
@@ -220,6 +226,7 @@ async function restoreSession(){
     fetchLeaderboard();
     fetchFriends();
     fetchConversations();
+    if (s.view === "quests") fetchQuests();
     connectMessagesWS();
     render();
     return true;
@@ -414,6 +421,78 @@ function friendsView(){
           <div class="leaderboard friends-list">${outgoingHtml}</div>
         </section>
       </div>
+    </main>
+  </div>`;
+}
+
+// ================== NHIỆM VỤ ==================
+
+async function fetchQuests(){
+  if (!s.token) return;
+  try {
+    const res = await authFetch(`${API_URL}/quests`);
+    if (res.ok) {
+      const data = await res.json();
+      s.quests = data.quests || [];
+      s.questsLoaded = true;
+      if (s.view === "quests") render();
+    }
+  } catch (err) {
+    console.error("Lỗi lấy danh sách nhiệm vụ:", err);
+  }
+}
+
+async function completeQuest(questId){
+  if (s.questBusyId) return;
+  s.questBusyId = questId;
+  render();
+  try {
+    const res = await authFetch(`${API_URL}/quests/${encodeURIComponent(questId)}/complete`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      s.quests = data.quests || s.quests;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert("Không thể hoàn thành nhiệm vụ: " + (data.detail || "lỗi không rõ"));
+    }
+  } catch (err) {
+    alert("Không kết nối được tới máy chủ Backend!");
+  } finally {
+    s.questBusyId = null;
+    render();
+  }
+}
+
+function questsView(){
+  const total = s.quests.length;
+  const done = s.quests.filter(q => q.done).length;
+  const pct = total ? Math.round(done * 100 / total) : 0;
+
+  const rowsHtml = s.quests.map((q, i) => `<div class="quest-row${q.done ? " done" : ""}">
+      <div class="quest-index">${q.done ? "✓" : i + 1}</div>
+      <div class="quest-info">
+        <div class="quest-title">${esc(q.title)}</div>
+        <div class="quest-desc">${esc(q.description)}</div>
+      </div>
+      ${q.done
+        ? `<span class="quest-status">Đã hoàn thành</span>`
+        : `<button type="button" class="friend-btn friend-btn-accept" ${s.questBusyId === q.id ? "disabled" : ""} onclick="completeQuest(${Number(q.id)})">Hoàn thành</button>`}
+    </div>`).join("");
+
+  const emptyHtml = `<div class="nav-search-empty" style="padding:2rem 1rem">
+    <span class="nav-search-empty-icon">${s.questsLoaded ? "📭" : "⏳"}</span>${s.questsLoaded ? "Chưa có nhiệm vụ nào" : "Đang tải nhiệm vụ..."}
+  </div>`;
+
+  return `<div class="home fade">
+    <div class="gridbg fixed-grid"></div>
+    ${navBar()}
+    <main class="content">
+      <section class="section">
+        <div class="section-title">Nhiệm vụ</div>
+        <h3>Hoàn thành nhiệm vụ (${done}/${total})</h3>
+        <div class="quest-progress"><div class="quest-progress-bar" style="width:${pct}%"></div></div>
+        <div class="leaderboard quest-list">${rowsHtml || emptyHtml}</div>
+      </section>
     </main>
   </div>`;
 }
@@ -1526,6 +1605,7 @@ function render(){
   else if(s.view==="chibi")    app.innerHTML = chibiView();
   else if(s.view==="friends")  app.innerHTML = friendsView();
   else if(s.view==="messages") app.innerHTML = messagesView();
+  else if(s.view==="quests")   app.innerHTML = questsView();
   else if(s.view==="game"){
     app.innerHTML = gameView();
     s.gameSessionToken = ""; // reset, token cũ (nếu có) đã dùng xong hoặc không còn hợp lệ
@@ -1563,6 +1643,9 @@ function go(view, gameId){
   }
   if(view === "messages") {
     fetchConversations();
+  }
+  if(view === "quests") {
+    fetchQuests();
   }
   render();
   saveSession();
@@ -1791,6 +1874,7 @@ function navBar(){
         <span class="${s.view==='messages'?'active':''}" onclick="go('messages')" style="cursor:pointer;position:relative">
           Tin nhắn${totalUnreadMessages() ? `<span class="nav-badge">${totalUnreadMessages()}</span>` : ""}
         </span>
+        <span class="${s.view==='quests'?'active':''}" onclick="go('quests')" style="cursor:pointer">Nhiệm vụ</span>
         <span>Cửa hàng</span>
       </div>
       ${searchBox()}
