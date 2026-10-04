@@ -2037,14 +2037,6 @@ function navBar(){
       <div class="navlinks">
         <span class="${s.view==='home'?'active':''}" onclick="go('home')" style="cursor:pointer">Hồ sơ</span>
         <span class="${gamesActive?'active':''}" onclick="go('games')" style="cursor:pointer">Chơi ngay</span>
-        <span class="${s.view==='chibi'?'active':''}" onclick="go('chibi')" style="cursor:pointer">Chibi</span>
-        <span class="${s.view==='friends'?'active':''}" onclick="go('friends')" style="cursor:pointer;position:relative">
-          Bạn bè${s.friendsIncoming.length ? `<span class="nav-badge">${s.friendsIncoming.length}</span>` : ""}
-        </span>
-        <span class="${s.view==='messages'?'active':''}" onclick="go('messages')" style="cursor:pointer;position:relative">
-          Tin nhắn${totalUnreadMessages() ? `<span class="nav-badge">${totalUnreadMessages()}</span>` : ""}
-        </span>
-        <span class="${s.view==='quests'?'active':''}" onclick="go('quests')" style="cursor:pointer">Nhiệm vụ</span>
         <span>Cửa hàng</span>
       </div>
       ${searchBox()}
@@ -2056,7 +2048,28 @@ function navBar(){
         </div>
         <button class="logout" onclick="logout()">Đăng xuất</button>
       </div>
-    </nav>`;
+    </nav>
+    ${sideBar()}`;
+}
+
+// Thanh bên trái: Chibi, Bạn bè, Tin nhắn, Nhiệm vụ (position:fixed nên không ảnh hưởng bố cục từng trang).
+function sideBar(){
+  const ic = (d) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const items = [
+    { view: "chibi",    label: "Chibi",    badge: 0,
+      icon: ic('<circle cx="12" cy="12" r="9"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>') },
+    { view: "friends",  label: "Bạn bè",   badge: s.friendsIncoming.length,
+      icon: ic('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>') },
+    { view: "messages", label: "Tin nhắn", badge: totalUnreadMessages(),
+      icon: ic('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>') },
+    { view: "quests",   label: "Nhiệm vụ", badge: 0,
+      icon: ic('<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>') }
+  ];
+  return `<aside class="sidebar">${items.map(i => `<div class="side-item${s.view === i.view ? " active" : ""}" onclick="go('${i.view}')" title="${i.label}">
+      <span class="side-icon">${i.icon}</span>
+      <span class="side-label">${i.label}</span>
+      ${i.badge ? `<span class="side-badge">${i.badge}</span>` : ""}
+    </div>`).join("")}</aside>`;
 }
 
 function searchBox(){
