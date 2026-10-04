@@ -776,3 +776,39 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
 .notif-toast-icon{font-size:22px}
 @keyframes notifToastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
 @media (max-width:640px){.notif-toast-box{right:10px;left:10px}.notif-toast{max-width:none}}
+
+/* ================== THANH BÊN TRÁI (Chibi / Bạn bè / Tin nhắn / Nhiệm vụ) ================== */
+:root{--side-w:210px}
+.home{padding-left:var(--side-w)}
+.home>.navbar{margin-left:calc(var(--side-w) * -1)}
+.sidebar{position:fixed;left:0;top:68px;bottom:0;width:var(--side-w);z-index:9;box-sizing:border-box;padding:1.2rem .8rem;display:flex;flex-direction:column;gap:.4rem;background:rgba(10,10,22,.82);backdrop-filter:blur(14px);border-right:1px solid rgba(139,92,246,.15);overflow-y:auto}
+.side-item{position:relative;display:flex;align-items:center;gap:.8rem;padding:.7rem .85rem;border-radius:10px;cursor:pointer;font-size:14.5px;font-weight:600;color:rgba(248,247,244,.6);transition:background .15s,color .15s}
+.side-item:hover{background:rgba(139,92,246,.1);color:rgba(248,247,244,.95)}
+.side-item.active{background:rgba(139,92,246,.18);color:#fff}
+.side-item.active::before{content:"";position:absolute;left:-.8rem;top:20%;bottom:20%;width:3px;border-radius:0 3px 3px 0;background:var(--accent-grad);box-shadow:0 0 10px rgba(139,92,246,.7)}
+.side-item.active .side-icon{color:var(--accent)}
+.side-icon{display:grid;place-items:center;flex:none}
+.side-label{flex:1;white-space:nowrap}
+.side-badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e53e3e;color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center}
+
+/* Màn hình vừa: thu gọn còn icon */
+@media(max-width:1100px){
+  :root{--side-w:68px}
+  .sidebar{padding:1rem .6rem;align-items:center}
+  .side-item{justify-content:center;padding:.7rem}
+  .side-label{display:none}
+  .side-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;font-size:9.5px;box-shadow:0 0 0 2px #0a0a16}
+  .side-item.active::before{left:-.6rem}
+}
+/* Điện thoại: thanh menu nằm dưới đáy màn hình */
+@media(max-width:600px){
+  :root{--side-w:0px}
+  .home{padding-left:0;padding-bottom:70px}
+  .home>.navbar{margin-left:0}
+  .sidebar{top:auto;bottom:0;left:0;right:0;width:auto;height:62px;padding:.35rem .5rem;flex-direction:row;justify-content:space-around;align-items:stretch;gap:0;border-right:0;border-top:1px solid rgba(139,92,246,.2);overflow:visible}
+  .side-item{flex:1;flex-direction:column;justify-content:center;gap:2px;padding:.2rem;font-size:10.5px}
+  .side-label{display:block;flex:none}
+  .side-badge{top:0;right:18%}
+  .side-item.active::before{left:20%;right:20%;top:-.35rem;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
+  .chat-app{height:calc(100vh - 68px - 62px - 3rem)}
+}
