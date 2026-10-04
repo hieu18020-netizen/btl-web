@@ -825,3 +825,7 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
 .history-badge.draw{color:rgba(255,255,255,.7);background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.18)}
 .history-badge.score{color:#22d3ee;background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.35)}
 @media(max-width:700px){.history-summary{grid-template-columns:repeat(2,1fr)}}
+
+/* Chibi chưa mở khoá nhưng đã có ảnh: ảnh xám + ổ khoá nhỏ ở góc */
+.chibi-card.locked .chibi-card-avatar img.locked-img{filter:grayscale(1) brightness(.7)}
+.chibi-lock-badge{position:absolute;bottom:4px;right:4px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:#1a1a2e;box-shadow:0 0 0 3px #0a0a16}
