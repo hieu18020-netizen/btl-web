@@ -508,7 +508,7 @@ async function fetchConversations(){
     }
   } catch (err) {
     console.error("Lỗi lấy danh sách hội thoại:", err);
-    s.conversationsError = true;
+    s.conversationsError = (err && err.message) ? err.message : true;
     // Chỉ vẽ lại khi đang ở trang Tin nhắn (render() ở trang khác, vd. đang chơi game, sẽ làm game khởi động lại).
     if (s.view === "messages") render();
   }
@@ -608,7 +608,7 @@ async function openChat(publicId){
     s.activeChatOldestId = s.activeChatMessages.length ? s.activeChatMessages[0].id : null;
   } catch (err) {
     console.error("Lỗi tải lịch sử tin nhắn:", err);
-    s.activeChatError = true;
+    s.activeChatError = (err && err.message) ? err.message : true;
   } finally {
     s.activeChatLoading = false;
     render();
@@ -699,7 +699,7 @@ function conversationListHtml(){
   if (!s.conversationsLoaded) {
     if (s.conversationsError) {
       return `<div class="nav-search-empty" style="padding:2rem 1rem">
-        <span class="nav-search-empty-icon">⚠️</span>Không tải được danh sách tin nhắn (lỗi từ máy chủ).
+        <span class="nav-search-empty-icon">⚠️</span>Không tải được danh sách tin nhắn (${esc(typeof s.conversationsError === "string" ? s.conversationsError : "không kết nối được máy chủ")}).
         <div style="margin-top:.8rem"><button type="button" class="friend-btn friend-btn-add" onclick="s.conversationsError=false;render();fetchConversations()">Thử lại</button></div>
       </div>`;
     }
@@ -752,7 +752,7 @@ function chatPanelHtml(){
     body = `<div class="nav-search-empty" style="padding:2rem 1rem"><span class="nav-search-spin">◌</span> Đang tải tin nhắn...</div>`;
   } else if (s.activeChatError) {
     body = `<div class="nav-search-empty" style="padding:2rem 1rem">
-        <span class="nav-search-empty-icon">⚠️</span>Không tải được tin nhắn (lỗi từ máy chủ).
+        <span class="nav-search-empty-icon">⚠️</span>Không tải được tin nhắn (${esc(typeof s.activeChatError === "string" ? s.activeChatError : "không kết nối được máy chủ")}).
         <div style="margin-top:.8rem"><button type="button" class="friend-btn friend-btn-add" onclick="openChat('${esc(s.activeChatPublicId)}')">Thử lại</button></div>
       </div>`;
   } else {
