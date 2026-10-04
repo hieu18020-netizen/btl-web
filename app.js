@@ -1577,6 +1577,15 @@ function chibiCard(c){
   const isActive = s.activeChibiCodes.has(c.code);
 
   if (!isChibiUnlocked(c.code)) {
+    // Chibi đã có ảnh (vd Yuki): vẫn hiện ảnh + tên nhưng làm xám, phủ ổ khoá, không bấm "Sử dụng" được.
+    // Chibi chưa có ảnh (vd "???"): chỉ hiện ổ khoá như cũ.
+    const hasImage = !!c.frontImage;
+    const avatarHtml2 = hasImage
+      ? `<div class="chibi-card-avatar">
+          <img class="locked-img" src="${esc(imgSrc)}" alt="${esc(c.name)}" onerror="this.onerror=null;this.src='${esc(fallback)}'">
+        </div>
+        <span class="chibi-lock-badge" aria-hidden="true">🔒</span>`
+      : `<div class="chibi-card-avatar locked-avatar">🔒</div>`;
     return `<div class="chibi-card locked" style="--tint:${tint}">
       <div class="chibi-card-top">
         <span class="chibi-badge-rarity" style="color:${color};border-color:${color}66">${c.rarity}</span>
@@ -1584,10 +1593,10 @@ function chibiCard(c){
       </div>
       ${chibiStars(c.rarity)}
       <div class="chibi-card-avatar-wrap">
-        <div class="chibi-card-avatar locked-avatar">🔒</div>
+        ${avatarHtml2}
       </div>
-      <div class="chibi-card-name muted">Chưa mở khoá</div>
-      <div class="chibi-card-desc">Săn thêm để mở khoá chibi này</div>
+      <div class="chibi-card-name${hasImage ? "" : " muted"}">${hasImage ? esc(c.name) : "Chưa mở khoá"}</div>
+      <div class="chibi-card-desc">${hasImage ? "🔒 Chưa mở khoá" : "Săn thêm để mở khoá chibi này"}</div>
     </div>`;
   }
 
