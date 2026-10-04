@@ -490,11 +490,14 @@ async function fetchConversations(){
     const res = await authFetch(`${API_URL}/messages/conversations`);
     if (res.ok) {
       s.conversations = await res.json();
-      s.conversationsLoaded = true;
-      render();
+    } else {
+      console.error("Lỗi lấy danh sách hội thoại:", res.status, await res.text().catch(() => ""));
     }
   } catch (err) {
     console.error("Lỗi lấy danh sách hội thoại:", err);
+  } finally {
+    s.conversationsLoaded = true; // luôn tắt spinner, kể cả khi lỗi
+    render();
   }
 }
 
