@@ -101,8 +101,15 @@ let s = {
   friendsLoaded  : false,
   quests         : [],
   questsLoaded   : false,
+  notifications  : [],
+  notifUnread    : 0,
+  notifOpen      : false,
+  notifLoaded    : false,
+  notifLastId    : null,
   conversations       : [],
   conversationsLoaded : false,
+  conversationsError  : false,
+  activeChatError     : false,
   activeChatPublicId  : null,
   activeChatMessages  : [],
   activeChatLoading   : false,
@@ -191,6 +198,7 @@ function logout(){
   s.activeChibiCodes = new Set();
   applyChibiRunnerState();
   disconnectMessagesWS();
+  stopNotifPolling();
   go("login");
 }
 
@@ -226,6 +234,7 @@ async function restoreSession(){
     fetchConversations();
     if (s.view === "quests") fetchQuests();
     connectMessagesWS();
+    startNotifPolling();
     render();
     return true;
   } catch (err) {
@@ -434,6 +443,7 @@ async function fetchQuests(){
       s.quests = data.quests || [];
       s.questsLoaded = true;
       if (s.view === "quests") render();
+      fetchNotifications(true); // nhiệm vụ vừa hoàn thành -> thông báo mới + toast
     }
   } catch (err) {
     console.error("Lỗi lấy danh sách nhiệm vụ:", err);
@@ -490,14 +500,17 @@ async function fetchConversations(){
     const res = await authFetch(`${API_URL}/messages/conversations`);
     if (res.ok) {
       s.conversations = await res.json();
+      s.conversationsLoaded = true;
+      s.conversationsError = false;
+      render();
     } else {
-      console.error("Lỗi lấy danh sách hội thoại:", res.status, await res.text().catch(() => ""));
+      throw new Error("HTTP " + res.status);
     }
   } catch (err) {
     console.error("Lỗi lấy danh sách hội thoại:", err);
-  } finally {
-    s.conversationsLoaded = true; // luôn tắt spinner, kể cả khi lỗi
-    render();
+    s.conversationsError = true;
+    // Chỉ vẽ lại khi đang ở trang Tin nhắn (render() ở trang khác, vd. đang chơi game, sẽ làm game khởi động lại).
+    if (s.view === "messages") render();
   }
 }
 
@@ -581,19 +594,21 @@ async function openChat(publicId){
   s.activeChatPublicId = publicId;
   s.activeChatMessages = [];
   s.activeChatLoading = true;
+  s.activeChatError = false;
   s.activeChatOldestId = null;
   s.activeChatHasMore = false;
   render();
 
   try {
     const res = await authFetch(`${API_URL}/messages/${encodeURIComponent(publicId)}`);
-    if (!res.ok) throw new Error("Không tải được tin nhắn");
+    if (!res.ok) throw new Error("Không tải được tin nhắn (HTTP " + res.status + ")");
     const data = await res.json();
     s.activeChatMessages = data.messages || [];
     s.activeChatHasMore = !!data.has_more;
     s.activeChatOldestId = s.activeChatMessages.length ? s.activeChatMessages[0].id : null;
   } catch (err) {
     console.error("Lỗi tải lịch sử tin nhắn:", err);
+    s.activeChatError = true;
   } finally {
     s.activeChatLoading = false;
     render();
@@ -682,6 +697,12 @@ function formatChatTime(iso){
 
 function conversationListHtml(){
   if (!s.conversationsLoaded) {
+    if (s.conversationsError) {
+      return `<div class="nav-search-empty" style="padding:2rem 1rem">
+        <span class="nav-search-empty-icon">⚠️</span>Không tải được danh sách tin nhắn (lỗi từ máy chủ).
+        <div style="margin-top:.8rem"><button type="button" class="friend-btn friend-btn-add" onclick="s.conversationsError=false;render();fetchConversations()">Thử lại</button></div>
+      </div>`;
+    }
     return `<div class="nav-search-empty" style="padding:2rem 1rem"><span class="nav-search-spin">◌</span> Đang tải hội thoại...</div>`;
   }
   if (s.conversations.length === 0) {
@@ -729,6 +750,11 @@ function chatPanelHtml(){
   let body;
   if (s.activeChatLoading) {
     body = `<div class="nav-search-empty" style="padding:2rem 1rem"><span class="nav-search-spin">◌</span> Đang tải tin nhắn...</div>`;
+  } else if (s.activeChatError) {
+    body = `<div class="nav-search-empty" style="padding:2rem 1rem">
+        <span class="nav-search-empty-icon">⚠️</span>Không tải được tin nhắn (lỗi từ máy chủ).
+        <div style="margin-top:.8rem"><button type="button" class="friend-btn friend-btn-add" onclick="openChat('${esc(s.activeChatPublicId)}')">Thử lại</button></div>
+      </div>`;
   } else {
     const loadMoreBtn = s.activeChatHasMore
       ? `<button type="button" class="chat-load-more" onclick="loadOlderMessages()">Xem tin nhắn cũ hơn</button>`
@@ -1615,6 +1641,7 @@ function go(view, gameId){
   if(view==="login") s.regOk = false;
   if(gameId) s.selectedGame = gameId;
   s.view = view;
+  s.notifOpen = false;
   if(view === "home") {
     fetchLeaderboard();
     fetchUserStats();
@@ -1674,6 +1701,7 @@ async function doLogin(e){
         fetchFriends();
         fetchConversations();
         connectMessagesWS();
+        startNotifPolling();
       } else {
         s.nick = username;
         s.view = "nickname";
@@ -1756,6 +1784,7 @@ async function doNick(e){
   fetchFriends();
   fetchConversations();
   connectMessagesWS();
+  startNotifPolling();
   render();
 }
 
@@ -1836,6 +1865,187 @@ function setFilter(f){
   render();
 }
 
+// ================== THÔNG BÁO ==================
+// Thông báo do DATABASE tự tạo (hoàn thành nhiệm vụ, lời mời kết bạn, thành tích...).
+// Chuông ở thanh menu hiện số chưa đọc; frontend hỏi server mỗi 30 giây.
+// QUAN TRỌNG: cập nhật chuông bằng cách thay đúng khối #notifWrap, KHÔNG gọi render()
+// (render() dựng lại cả trang -> sẽ làm game đang chơi bị khởi động lại).
+
+const NOTIF_POLL_MS = 30000;
+let notifPollTimer = null;
+
+const NOTIF_ICONS = { quest: "🎯", achievement: "🏆", friend_request: "👥", system: "🔔" };
+
+function notifIcon(type){ return NOTIF_ICONS[type] || "🔔"; }
+
+function notifTimeAgo(iso){
+  const t = new Date(iso).getTime();
+  if (!iso || isNaN(t)) return "";
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (sec < 60) return "Vừa xong";
+  if (sec < 3600) return `${Math.floor(sec / 60)} phút trước`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)} giờ trước`;
+  if (sec < 86400 * 7) return `${Math.floor(sec / 86400)} ngày trước`;
+  return new Date(t).toLocaleDateString("vi-VN");
+}
+
+function notifBellHtml(){
+  const unread = s.notifUnread || 0;
+  const badge = unread ? `<span class="notif-badge">${unread > 99 ? "99+" : unread}</span>` : "";
+
+  let panel = "";
+  if (s.notifOpen) {
+    const items = s.notifications.map(n => `<div class="notif-item${n.is_read ? "" : " unread"}" onclick="onNotifClick(${Number(n.id)})">
+        <div class="notif-icon">${notifIcon(n.type)}</div>
+        <div class="notif-body">
+          <div class="notif-text">${esc(n.content)}</div>
+          <div class="notif-time">${esc(notifTimeAgo(n.created_at))}</div>
+        </div>
+        ${n.is_read ? "" : `<span class="notif-dot"></span>`}
+      </div>`).join("");
+    const empty = `<div class="notif-empty">${s.notifLoaded ? "📭 Chưa có thông báo nào" : "⏳ Đang tải..."}</div>`;
+    panel = `<div class="notif-panel">
+        <div class="notif-head">
+          <span>Thông báo</span>
+          <button type="button" class="notif-readall" onclick="markAllNotifRead()" ${unread ? "" : "disabled"}>Đánh dấu đã đọc tất cả</button>
+        </div>
+        <div class="notif-list">${items || empty}</div>
+      </div>`;
+  }
+
+  return `<div class="notif-wrap" id="notifWrap">
+      <button type="button" class="notif-bell${s.notifOpen ? " open" : ""}" onclick="toggleNotifPanel()" title="Thông báo" aria-label="Thông báo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        ${badge}
+      </button>
+      ${panel}
+    </div>`;
+}
+
+// Chỉ thay khối chuông (không render lại cả trang).
+function refreshNotifUI(){
+  const wrap = document.getElementById("notifWrap");
+  if (wrap) wrap.outerHTML = notifBellHtml();
+}
+
+function toggleNotifPanel(){
+  s.notifOpen = !s.notifOpen;
+  refreshNotifUI();
+  if (s.notifOpen) fetchNotifications();
+}
+
+async function fetchNotifications(fromQuests){
+  if (!s.token) return;
+  try {
+    const res = await authFetch(`${API_URL}/notifications?limit=30`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = data.notifications || [];
+    const maxId = list.reduce((m, n) => Math.max(m, n.id), 0);
+
+    // Lần tải đầu tiên chỉ ghi nhớ mốc, không bật toast cho thông báo cũ.
+    const prevLastId = s.notifLastId;
+    s.notifLastId = Math.max(prevLastId || 0, maxId);
+    s.notifications = list;
+    s.notifUnread = data.unread || 0;
+    s.notifLoaded = true;
+    refreshNotifUI();
+
+    if (prevLastId !== null) {
+      const fresh = list.filter(n => n.id > prevLastId && !n.is_read).reverse().slice(-3);
+      fresh.forEach(showNotifToast);
+      // Đang ở trang Nhiệm vụ mà có nhiệm vụ mới hoàn thành -> làm mới danh sách.
+      if (!fromQuests && s.view === "quests" && fresh.some(n => n.type === "quest")) fetchQuests();
+    }
+  } catch (err) {
+    console.error("Lỗi lấy thông báo:", err);
+  }
+}
+
+async function pollNotifications(){
+  if (!s.token || document.hidden) return;
+  try {
+    const res = await authFetch(`${API_URL}/notifications/unread-count`);
+    if (!res.ok) return;
+    const data = await res.json();
+    // Số chưa đọc đổi (có thông báo mới, hoặc đã đọc ở tab khác) / panel đang mở -> tải lại danh sách.
+    if ((data.unread || 0) !== s.notifUnread || s.notifOpen) await fetchNotifications();
+  } catch (err) { /* mất mạng: bỏ qua, lần sau thử lại */ }
+}
+
+function startNotifPolling(){
+  if (!s.token) return;
+  if (notifPollTimer) return;
+  fetchNotifications();
+  notifPollTimer = setInterval(pollNotifications, NOTIF_POLL_MS);
+}
+
+function stopNotifPolling(){
+  if (notifPollTimer) { clearInterval(notifPollTimer); notifPollTimer = null; }
+  s.notifications = [];
+  s.notifUnread = 0;
+  s.notifOpen = false;
+  s.notifLoaded = false;
+  s.notifLastId = null;
+}
+
+async function markNotifReadOnServer(id){
+  try {
+    await authFetch(`${API_URL}/notifications/${id}/read`, { method: "POST" });
+  } catch (err) { console.error("Lỗi đánh dấu đã đọc:", err); }
+}
+
+function onNotifClick(id){
+  const n = s.notifications.find(x => x.id === id);
+  if (!n) return;
+  if (!n.is_read) {
+    n.is_read = true;
+    s.notifUnread = Math.max(0, s.notifUnread - 1);
+    markNotifReadOnServer(id);
+  }
+  s.notifOpen = false;
+  if (n.type === "quest") go("quests");
+  else if (n.type === "friend_request") go("friends");
+  else refreshNotifUI();
+}
+
+async function markAllNotifRead(){
+  s.notifications.forEach(n => { n.is_read = true; });
+  s.notifUnread = 0;
+  refreshNotifUI();
+  try {
+    await authFetch(`${API_URL}/notifications/read-all`, { method: "POST" });
+  } catch (err) { console.error("Lỗi đánh dấu đã đọc tất cả:", err); }
+}
+
+// Toast nổi góc phải màn hình; gắn vào <body> (ngoài #app) nên không bị render() xóa mất.
+function showNotifToast(n){
+  let box = document.getElementById("notifToastBox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "notifToastBox";
+    box.className = "notif-toast-box";
+    document.body.appendChild(box);
+  }
+  const el = document.createElement("div");
+  el.className = "notif-toast";
+  el.innerHTML = `<span class="notif-toast-icon">${notifIcon(n.type)}</span><span class="notif-toast-text">${esc(n.content)}</span>`;
+  el.onclick = () => { el.remove(); onNotifClick(n.id); };
+  box.appendChild(el);
+  setTimeout(() => { el.classList.add("hide"); setTimeout(() => el.remove(), 400); }, 6000);
+}
+
+// Bấm ra ngoài khối chuông -> đóng panel.
+document.addEventListener("click", (e) => {
+  if (s.notifOpen && !(e.target.closest && e.target.closest(".notif-wrap"))) {
+    s.notifOpen = false;
+    refreshNotifUI();
+  }
+});
+
 // ================== TÌM KIẾM NGƯỜI CHƠI (thanh menu) ==================
 
 // Thanh menu dùng chung cho các trang home / games / game, có kèm ô tìm kiếm.
@@ -1848,25 +2058,39 @@ function navBar(){
       <div class="navlinks">
         <span class="${s.view==='home'?'active':''}" onclick="go('home')" style="cursor:pointer">Hồ sơ</span>
         <span class="${gamesActive?'active':''}" onclick="go('games')" style="cursor:pointer">Chơi ngay</span>
-        <span class="${s.view==='chibi'?'active':''}" onclick="go('chibi')" style="cursor:pointer">Chibi</span>
-        <span class="${s.view==='friends'?'active':''}" onclick="go('friends')" style="cursor:pointer;position:relative">
-          Bạn bè${s.friendsIncoming.length ? `<span class="nav-badge">${s.friendsIncoming.length}</span>` : ""}
-        </span>
-        <span class="${s.view==='messages'?'active':''}" onclick="go('messages')" style="cursor:pointer;position:relative">
-          Tin nhắn${totalUnreadMessages() ? `<span class="nav-badge">${totalUnreadMessages()}</span>` : ""}
-        </span>
-        <span class="${s.view==='quests'?'active':''}" onclick="go('quests')" style="cursor:pointer">Nhiệm vụ</span>
         <span>Cửa hàng</span>
       </div>
       ${searchBox()}
       <div class="navuser">
+        ${notifBellHtml()}
         <div class="navuser-profile" onclick="go('home')" style="display:flex;align-items:center;gap:.5rem;cursor:pointer" title="Xem hồ sơ">
           <div class="avatar">${avatarHtml(s.avatar, ini)}</div>
           <span style="font-size:14.5px;font-weight:500">${esc(displayName)}</span>
         </div>
         <button class="logout" onclick="logout()">Đăng xuất</button>
       </div>
-    </nav>`;
+    </nav>
+    ${sideBar()}`;
+}
+
+// Thanh bên trái: Chibi, Bạn bè, Tin nhắn, Nhiệm vụ (position:fixed nên không ảnh hưởng bố cục từng trang).
+function sideBar(){
+  const ic = (d) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const items = [
+    { view: "chibi",    label: "Chibi",    badge: 0,
+      icon: ic('<circle cx="12" cy="12" r="9"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>') },
+    { view: "friends",  label: "Bạn bè",   badge: s.friendsIncoming.length,
+      icon: ic('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>') },
+    { view: "messages", label: "Tin nhắn", badge: totalUnreadMessages(),
+      icon: ic('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>') },
+    { view: "quests",   label: "Nhiệm vụ", badge: 0,
+      icon: ic('<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>') }
+  ];
+  return `<aside class="sidebar">${items.map(i => `<div class="side-item${s.view === i.view ? " active" : ""}" onclick="go('${i.view}')" title="${i.label}">
+      <span class="side-icon">${i.icon}</span>
+      <span class="side-label">${i.label}</span>
+      ${i.badge ? `<span class="side-badge">${i.badge}</span>` : ""}
+    </div>`).join("")}</aside>`;
 }
 
 function searchBox(){
