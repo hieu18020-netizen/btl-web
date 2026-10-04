@@ -746,3 +746,33 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
 .quest-row.done .quest-title{text-decoration:line-through;opacity:.65}
 .quest-status-pending{color:rgba(255,255,255,.45)}
 .quest-hint{font-size:13px;color:rgba(255,255,255,.55);margin:.25rem 0 .6rem}
+
+/* ================== THÔNG BÁO (chuông + panel + toast) ================== */
+.notif-wrap{position:relative}
+.notif-bell{position:relative;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:#cfc8ee;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);transition:background .2s,box-shadow .2s,color .2s}
+.notif-bell:hover,.notif-bell.open{background:rgba(139,92,246,.22);color:#fff;box-shadow:0 0 14px rgba(139,92,246,.45)}
+.notif-badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#e53e3e;color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px #0a0a16}
+.notif-panel{position:absolute;right:0;top:48px;width:340px;max-width:calc(100vw - 24px);background:rgba(14,14,30,.98);border:1px solid rgba(139,92,246,.3);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 24px rgba(139,92,246,.15);overflow:hidden;z-index:30}
+.notif-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.8rem 1rem;border-bottom:1px solid rgba(139,92,246,.18);font-weight:600;font-size:14.5px}
+.notif-readall{background:none;border:0;color:var(--accent2);font-size:12px;cursor:pointer;padding:0}
+.notif-readall:hover:not(:disabled){text-decoration:underline}
+.notif-readall:disabled{opacity:.4;cursor:default}
+.notif-list{max-height:380px;overflow-y:auto}
+.notif-item{display:flex;align-items:flex-start;gap:.7rem;padding:.75rem 1rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);transition:background .15s}
+.notif-item:last-child{border-bottom:0}
+.notif-item:hover{background:rgba(139,92,246,.12)}
+.notif-item.unread{background:rgba(139,92,246,.08)}
+.notif-icon{font-size:20px;line-height:1.2}
+.notif-body{flex:1;min-width:0}
+.notif-text{font-size:13.5px;line-height:1.4;word-break:break-word}
+.notif-item:not(.unread) .notif-text{opacity:.7}
+.notif-time{font-size:11.5px;opacity:.5;margin-top:3px}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);box-shadow:0 0 8px var(--accent2);margin-top:6px;flex:none}
+.notif-empty{padding:2rem 1rem;text-align:center;opacity:.6;font-size:13.5px}
+
+.notif-toast-box{position:fixed;top:80px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:.6rem;pointer-events:none}
+.notif-toast{pointer-events:auto;display:flex;align-items:center;gap:.7rem;max-width:340px;padding:.8rem 1rem;border-radius:12px;cursor:pointer;background:rgba(14,14,30,.97);border:1px solid rgba(139,92,246,.45);box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 18px rgba(139,92,246,.3);font-size:13.5px;animation:notifToastIn .35s ease;transition:opacity .4s,transform .4s}
+.notif-toast.hide{opacity:0;transform:translateX(30px)}
+.notif-toast-icon{font-size:22px}
+@keyframes notifToastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+@media (max-width:640px){.notif-toast-box{right:10px;left:10px}.notif-toast{max-width:none}}
