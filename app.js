@@ -108,6 +108,8 @@ let s = {
   notifLastId    : null,
   conversations       : [],
   conversationsLoaded : false,
+  conversationsError  : false,
+  activeChatError     : false,
   activeChatPublicId  : null,
   activeChatMessages  : [],
   activeChatLoading   : false,
@@ -499,10 +501,16 @@ async function fetchConversations(){
     if (res.ok) {
       s.conversations = await res.json();
       s.conversationsLoaded = true;
+      s.conversationsError = false;
       render();
+    } else {
+      throw new Error("HTTP " + res.status);
     }
   } catch (err) {
     console.error("Lỗi lấy danh sách hội thoại:", err);
+    s.conversationsError = true;
+    // Chỉ vẽ lại khi đang ở trang Tin nhắn (render() ở trang khác, vd. đang chơi game, sẽ làm game khởi động lại).
+    if (s.view === "messages") render();
   }
 }
 
@@ -586,19 +594,21 @@ async function openChat(publicId){
   s.activeChatPublicId = publicId;
   s.activeChatMessages = [];
   s.activeChatLoading = true;
+  s.activeChatError = false;
   s.activeChatOldestId = null;
   s.activeChatHasMore = false;
   render();
 
   try {
     const res = await authFetch(`${API_URL}/messages/${encodeURIComponent(publicId)}`);
-    if (!res.ok) throw new Error("Không tải được tin nhắn");
+    if (!res.ok) throw new Error("Không tải được tin nhắn (HTTP " + res.status + ")");
     const data = await res.json();
     s.activeChatMessages = data.messages || [];
     s.activeChatHasMore = !!data.has_more;
     s.activeChatOldestId = s.activeChatMessages.length ? s.activeChatMessages[0].id : null;
   } catch (err) {
     console.error("Lỗi tải lịch sử tin nhắn:", err);
+    s.activeChatError = true;
   } finally {
     s.activeChatLoading = false;
     render();
@@ -687,6 +697,12 @@ function formatChatTime(iso){
 
 function conversationListHtml(){
   if (!s.conversationsLoaded) {
+    if (s.conversationsError) {
+      return `<div class="nav-search-empty" style="padding:2rem 1rem">
+        <span class="nav-search-empty-icon">⚠️</span>Không tải được danh sách tin nhắn (lỗi từ máy chủ).
+        <div style="margin-top:.8rem"><button type="button" class="friend-btn friend-btn-add" onclick="s.conversationsError=false;render();fetchConversations()">Thử lại</button></div>
+      </div>`;
+    }
     return `<div class="nav-search-empty" style="padding:2rem 1rem"><span class="nav-search-spin">◌</span> Đang tải hội thoại...</div>`;
   }
   if (s.conversations.length === 0) {
@@ -734,6 +750,11 @@ function chatPanelHtml(){
   let body;
   if (s.activeChatLoading) {
     body = `<div class="nav-search-empty" style="padding:2rem 1rem"><span class="nav-search-spin">◌</span> Đang tải tin nhắn...</div>`;
+  } else if (s.activeChatError) {
+    body = `<div class="nav-search-empty" style="padding:2rem 1rem">
+        <span class="nav-search-empty-icon">⚠️</span>Không tải được tin nhắn (lỗi từ máy chủ).
+        <div style="margin-top:.8rem"><button type="button" class="friend-btn friend-btn-add" onclick="openChat('${esc(s.activeChatPublicId)}')">Thử lại</button></div>
+      </div>`;
   } else {
     const loadMoreBtn = s.activeChatHasMore
       ? `<button type="button" class="chat-load-more" onclick="loadOlderMessages()">Xem tin nhắn cũ hơn</button>`
