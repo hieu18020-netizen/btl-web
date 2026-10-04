@@ -812,3 +812,16 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
   .side-item.active::before{left:20%;right:20%;top:-.35rem;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
   .chat-app{height:calc(100vh - 68px - 62px - 3rem)}
 }
+
+/* ===== Lịch sử chơi game ===== */
+.history-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin:.4rem 0 1.2rem}
+.history-stat{padding:.9rem 1rem;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(139,92,246,.2);text-align:center}
+.history-stat-num{font-family:Fraunces,Georgia,serif;font-size:1.5rem;font-weight:600;color:#f8f7f4}
+.history-stat-label{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px}
+.history-icon{font-size:16px}
+.history-badge{font-size:13px;font-weight:700;white-space:nowrap;padding:.3rem .75rem;border-radius:999px;border:1px solid transparent}
+.history-badge.win{color:#34d399;background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.35)}
+.history-badge.loss{color:#f87171;background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.35)}
+.history-badge.draw{color:rgba(255,255,255,.7);background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.18)}
+.history-badge.score{color:#22d3ee;background:rgba(34,211,238,.1);border-color:rgba(34,211,238,.35)}
+@media(max-width:700px){.history-summary{grid-template-columns:repeat(2,1fr)}}
