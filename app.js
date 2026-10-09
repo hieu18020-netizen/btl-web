@@ -122,6 +122,7 @@ let s = {
   unlockedChibiCodes  : new Set(), // mã các chibi tài khoản đã mở khoá (lấy từ server, bảng user_chibis)
   chibisLoaded        : false,
   gold                : 0,         // số vàng của tài khoản (lấy từ server qua /api/chibis)
+  shopOutdated        : false,     // true = backend đang chạy là bản cũ (không trả "price") -> cửa hàng không dùng được
   chibiPrices         : {},        // giá từng chibi trong cửa hàng {mã: số vàng} (server trả về; 0 = không bán)
   serverChibiCodes    : new Set(), // mã các chibi có trong CSDL (chỉ bán những chibi này)
   shopBuying          : "",        // mã chibi đang được mua (để khoá nút, tránh bấm 2 lần)
@@ -1483,6 +1484,7 @@ async function fetchChibis(){
     s.unlockedChibiCodes = new Set((data.chibis || []).filter(c => c.unlocked).map(c => c.code));
     s.chibisLoaded = true;
     s.gold = Number(data.gold) || 0;
+    s.shopOutdated = (data.chibis || []).length > 0 && !(data.chibis || []).some(c => c.price !== undefined);
     s.chibiPrices = Object.fromEntries((data.chibis || []).map(c => [c.code, Number(c.price) || 0]));
     s.serverChibiCodes = new Set((data.chibis || []).map(c => c.code));
     // Chibi chưa mở khoá thì không được phép chạy trên màn hình.
@@ -1737,8 +1739,14 @@ function shopView(){
   let body;
   if (!s.chibisLoaded) {
     body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-spin">◌</span> Đang tải cửa hàng...</div>`;
+  } else if (s.shopOutdated) {
+    body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">⚠️</span>Backend đang chạy là bản cũ (chưa có cửa hàng). Hãy tắt backend cũ rồi build và chạy lại bản mới.</div>`;
   } else if (!items.length) {
-    body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">🎉</span>Bạn đã sở hữu tất cả chibi trong cửa hàng!</div>`;
+    // Còn chibi có ảnh mà chưa sở hữu nhưng không có trong danh sách bán -> không được nói là "đã sở hữu tất cả".
+    const stillLocked = CHIBI_GALLERY.some(c => c.frontImage && !isChibiUnlocked(c.code));
+    body = stillLocked
+      ? `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">🛒</span>Hiện chưa có chibi nào được bán trong cửa hàng.</div>`
+      : `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">🎉</span>Bạn đã sở hữu tất cả chibi trong cửa hàng!</div>`;
   } else {
     body = `<div class="chibi-grid">${items.map(shopCard).join("")}</div>`;
   }
