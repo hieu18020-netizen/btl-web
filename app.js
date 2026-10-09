@@ -121,6 +121,10 @@ let s = {
   activeChibiCodes    : new Set(), // các mã chibi đang được chọn để chạy CÙNG LÚC trên màn hình; rỗng = chưa chọn cái nào
   unlockedChibiCodes  : new Set(), // mã các chibi tài khoản đã mở khoá (lấy từ server, bảng user_chibis)
   chibisLoaded        : false,
+  gold                : 0,         // số vàng của tài khoản (lấy từ server qua /api/chibis)
+  chibiPrice          : 50,        // giá 1 chibi trong cửa hàng (server trả về, mặc định 50)
+  serverChibiCodes    : new Set(), // mã các chibi có trong CSDL (chỉ bán những chibi này)
+  shopBuying          : "",        // mã chibi đang được mua (để khoá nút, tránh bấm 2 lần)
   gameHistory         : [],
   gameHistorySummary  : null,
   gameHistoryLoaded   : false,
@@ -145,7 +149,7 @@ function applyChibiRunnerState(){
 // Backend hiện không có token phiên, nên ta chỉ lưu username + dữ liệu hiển thị (không lưu mật khẩu),
 // rồi khi tải lại trang sẽ gọi API để xác thực & làm mới dữ liệu.
 const SESSION_KEY = "gz_session";
-const RESTORABLE_VIEWS = ["home", "games", "game", "friends", "messages", "chibi", "quests", "history"]; // các view hợp lệ để khôi phục sau F5
+const RESTORABLE_VIEWS = ["home", "games", "game", "friends", "messages", "chibi", "shop", "quests", "history"]; // các view hợp lệ để khôi phục sau F5
 
 function saveSession(){
   if (!s.username) return;
@@ -204,6 +208,9 @@ function logout(){
   s.activeChibiCodes = new Set();
   s.unlockedChibiCodes = new Set();
   s.chibisLoaded = false;
+  s.gold = 0;
+  s.serverChibiCodes = new Set();
+  s.shopBuying = "";
   s.gameHistory = [];
   s.gameHistorySummary = null;
   s.gameHistoryLoaded = false;
@@ -1475,13 +1482,16 @@ async function fetchChibis(){
     const data = await res.json();
     s.unlockedChibiCodes = new Set((data.chibis || []).filter(c => c.unlocked).map(c => c.code));
     s.chibisLoaded = true;
+    s.gold = Number(data.gold) || 0;
+    s.chibiPrice = Number(data.chibi_price) || 50;
+    s.serverChibiCodes = new Set((data.chibis || []).map(c => c.code));
     // Chibi chưa mở khoá thì không được phép chạy trên màn hình.
     let changed = false;
     for (const code of Array.from(s.activeChibiCodes)) {
       if (!s.unlockedChibiCodes.has(code)) { s.activeChibiCodes.delete(code); changed = true; }
     }
     if (changed) { applyChibiRunnerState(); saveSession(); }
-    if (s.view === "chibi") render();
+    if (s.view === "chibi" || s.view === "shop") render();
   } catch (err) {
     console.error("Lỗi lấy danh sách chibi:", err);
   }
@@ -1648,6 +1658,99 @@ function chibiView(){
   </div>`;
 }
 
+// ===================== CỬA HÀNG CHIBI =====================
+// Hiện các chibi tài khoản CHƯA sở hữu; mua 1 chibi tốn s.chibiPrice vàng (server kiểm tra lại, không tin trình duyệt).
+// Chỉ bán chibi có ảnh và có trong CSDL -> các ô "???" demo không xuất hiện trong cửa hàng.
+function shopItems(){
+  return CHIBI_GALLERY.filter(c => c.frontImage && s.serverChibiCodes.has(c.code) && !isChibiUnlocked(c.code));
+}
+
+function shopCard(c){
+  const color = rarityColor[c.rarity] || "rgba(248,247,244,.4)";
+  const elem = c.element ? ELEMENT_TYPES[c.element] : null;
+  const tint = elem ? elem.color : "#8b5cf6";
+  const fallback = `chibi/${c.code}/${c.frameFileName ? c.frameFileName(1) : "1.png"}`;
+  const imgSrc = c.frontImage || fallback;
+  const price = s.chibiPrice;
+  const enough = s.gold >= price;
+  const buying = s.shopBuying === c.code;
+  const disabled = !enough || !!s.shopBuying;
+  return `<div class="chibi-card shop-card" style="--tint:${tint}">
+    <div class="chibi-card-top">
+      <span class="chibi-badge-rarity" style="color:${color};border-color:${color}66">${c.rarity}</span>
+    </div>
+    ${chibiStars(c.rarity)}
+    <div class="chibi-card-avatar-wrap">
+      <div class="chibi-card-avatar">
+        <img src="${esc(imgSrc)}" alt="${esc(c.name)}" onerror="this.onerror=null;this.src='${esc(fallback)}'">
+      </div>
+      ${elem ? `<span class="chibi-elem-badge" style="background:${elem.color}22;color:${elem.color}">${elem.icon}</span>` : ""}
+    </div>
+    <div class="chibi-card-name">${esc(c.name)}</div>
+    <div class="chibi-card-desc">${esc(c.desc)}</div>
+    <div class="shop-price">🪙 ${price} vàng</div>
+    <button type="button" class="chibi-use-btn shop-buy-btn${enough ? "" : " cant-afford"}" ${disabled ? "disabled" : ""}
+      onclick="buyChibi('${esc(c.code)}')">${buying ? "Đang mua..." : "Mua"}</button>
+    ${enough ? "" : `<div class="shop-need">Còn thiếu ${price - s.gold} vàng</div>`}
+  </div>`;
+}
+
+async function buyChibi(code){
+  if (!s.token || s.shopBuying) return;
+  const c = CHIBI_GALLERY.find(g => g.code === code);
+  if (!c || isChibiUnlocked(code)) return;
+  if (s.gold < s.chibiPrice) { alert(`Bạn cần ${s.chibiPrice} vàng để mua chibi này.`); return; }
+  if (!confirm(`Mua chibi ${c.name} với giá ${s.chibiPrice} vàng?`)) return;
+
+  s.shopBuying = code;
+  render();
+  try {
+    const res = await authFetch(`${API_URL}/chibis/${encodeURIComponent(code)}/buy`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 400) alert("Bạn không đủ vàng để mua chibi này.");
+      else if (res.status === 409) alert("Bạn đã sở hữu chibi này rồi.");
+      else alert((data && data.detail) || "Mua chibi thất bại, vui lòng thử lại.");
+      fetchChibis(); // đồng bộ lại số vàng / chibi đã có theo server
+      return;
+    }
+    s.gold = Number(data.gold) || 0;
+    s.unlockedChibiCodes.add(code);
+    s.chibisLoaded = true;
+    alert(`Đã mua chibi ${c.name}! Vào mục Chibi để sử dụng nhé.`);
+  } catch (err) {
+    console.error("Lỗi mua chibi:", err);
+    alert("Không kết nối được máy chủ, vui lòng thử lại.");
+  } finally {
+    s.shopBuying = "";
+    render();
+  }
+}
+
+function shopView(){
+  const items = shopItems();
+  let body;
+  if (!s.chibisLoaded) {
+    body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-spin">◌</span> Đang tải cửa hàng...</div>`;
+  } else if (!items.length) {
+    body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">🎉</span>Bạn đã sở hữu tất cả chibi trong cửa hàng!</div>`;
+  } else {
+    body = `<div class="chibi-grid">${items.map(shopCard).join("")}</div>`;
+  }
+  return `<div class="home fade">
+    <div class="gridbg fixed-grid"></div>
+    ${navBar()}
+    <main class="content">
+      <div class="section-title">Cửa hàng</div>
+      <div class="shop-header">
+        <div class="quest-hint">Mỗi chibi giá ${s.chibiPrice} vàng.</div>
+        <div class="shop-gold">🪙 Vàng của bạn: <b>${s.gold}</b></div>
+      </div>
+      ${body}
+    </main>
+  </div>`;
+}
+
 function gamesView(){
   const displayName = s.nick || s.username || "GameThủ";
   const ini = displayName.slice(0, 2).toUpperCase();
@@ -1762,6 +1865,7 @@ function render(){
   else if(s.view==="nickname") app.innerHTML = nicknameView();
   else if(s.view==="games")    app.innerHTML = gamesView();
   else if(s.view==="chibi")    app.innerHTML = chibiView();
+  else if(s.view==="shop")     app.innerHTML = shopView();
   else if(s.view==="friends")  app.innerHTML = friendsView();
   else if(s.view==="messages") app.innerHTML = messagesView();
   else if(s.view==="quests")   app.innerHTML = questsView();
@@ -1811,7 +1915,7 @@ function go(view, gameId){
   if(view === "history") {
     fetchGameHistory();
   }
-  if(view === "chibi") {
+  if(view === "chibi" || view === "shop") {
     fetchChibis();
   }
   render();
@@ -2239,6 +2343,8 @@ function sideBar(){
   const items = [
     { view: "chibi",    label: "Chibi",    badge: 0,
       icon: ic('<circle cx="12" cy="12" r="9"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>') },
+    { view: "shop",     label: "Cửa hàng", badge: 0,
+      icon: ic('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path>') },
     { view: "friends",  label: "Bạn bè",   badge: s.friendsIncoming.length,
       icon: ic('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>') },
     { view: "messages", label: "Tin nhắn", badge: totalUnreadMessages(),
