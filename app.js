@@ -122,7 +122,7 @@ let s = {
   unlockedChibiCodes  : new Set(), // mã các chibi tài khoản đã mở khoá (lấy từ server, bảng user_chibis)
   chibisLoaded        : false,
   gold                : 0,         // số vàng của tài khoản (lấy từ server qua /api/chibis)
-  chibiPrice          : 50,        // giá 1 chibi trong cửa hàng (server trả về, mặc định 50)
+  chibiPrices         : {},        // giá từng chibi trong cửa hàng {mã: số vàng} (server trả về; 0 = không bán)
   serverChibiCodes    : new Set(), // mã các chibi có trong CSDL (chỉ bán những chibi này)
   shopBuying          : "",        // mã chibi đang được mua (để khoá nút, tránh bấm 2 lần)
   gameHistory         : [],
@@ -1483,7 +1483,7 @@ async function fetchChibis(){
     s.unlockedChibiCodes = new Set((data.chibis || []).filter(c => c.unlocked).map(c => c.code));
     s.chibisLoaded = true;
     s.gold = Number(data.gold) || 0;
-    s.chibiPrice = Number(data.chibi_price) || 50;
+    s.chibiPrices = Object.fromEntries((data.chibis || []).map(c => [c.code, Number(c.price) || 0]));
     s.serverChibiCodes = new Set((data.chibis || []).map(c => c.code));
     // Chibi chưa mở khoá thì không được phép chạy trên màn hình.
     let changed = false;
@@ -1659,10 +1659,13 @@ function chibiView(){
 }
 
 // ===================== CỬA HÀNG CHIBI =====================
-// Hiện các chibi tài khoản CHƯA sở hữu; mua 1 chibi tốn s.chibiPrice vàng (server kiểm tra lại, không tin trình duyệt).
+// Hiện các chibi tài khoản CHƯA sở hữu; mua chibi tốn số vàng theo giá từng chibi (server kiểm tra lại, không tin trình duyệt).
 // Chỉ bán chibi có ảnh và có trong CSDL -> các ô "???" demo không xuất hiện trong cửa hàng.
+// Giá 1 chibi (vàng) theo server; 0 = không bán.
+function chibiPrice(code){ return s.chibiPrices[code] || 0; }
+
 function shopItems(){
-  return CHIBI_GALLERY.filter(c => c.frontImage && s.serverChibiCodes.has(c.code) && !isChibiUnlocked(c.code));
+  return CHIBI_GALLERY.filter(c => c.frontImage && s.serverChibiCodes.has(c.code) && chibiPrice(c.code) > 0 && !isChibiUnlocked(c.code));
 }
 
 function shopCard(c){
@@ -1671,7 +1674,7 @@ function shopCard(c){
   const tint = elem ? elem.color : "#8b5cf6";
   const fallback = `chibi/${c.code}/${c.frameFileName ? c.frameFileName(1) : "1.png"}`;
   const imgSrc = c.frontImage || fallback;
-  const price = s.chibiPrice;
+  const price = chibiPrice(c.code);
   const enough = s.gold >= price;
   const buying = s.shopBuying === c.code;
   const disabled = !enough || !!s.shopBuying;
@@ -1699,8 +1702,10 @@ async function buyChibi(code){
   if (!s.token || s.shopBuying) return;
   const c = CHIBI_GALLERY.find(g => g.code === code);
   if (!c || isChibiUnlocked(code)) return;
-  if (s.gold < s.chibiPrice) { alert(`Bạn cần ${s.chibiPrice} vàng để mua chibi này.`); return; }
-  if (!confirm(`Mua chibi ${c.name} với giá ${s.chibiPrice} vàng?`)) return;
+  const price = chibiPrice(code);
+  if (price <= 0) return;
+  if (s.gold < price) { alert(`Bạn cần ${price} vàng để mua chibi này.`); return; }
+  if (!confirm(`Mua chibi ${c.name} với giá ${price} vàng?`)) return;
 
   s.shopBuying = code;
   render();
@@ -1743,7 +1748,6 @@ function shopView(){
     <main class="content">
       <div class="section-title">Cửa hàng</div>
       <div class="shop-header">
-        <div class="quest-hint">Mỗi chibi giá ${s.chibiPrice} vàng.</div>
         <div class="shop-gold">🪙 Vàng của bạn: <b>${s.gold}</b></div>
       </div>
       ${body}
