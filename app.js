@@ -121,11 +121,6 @@ let s = {
   activeChibiCodes    : new Set(), // các mã chibi đang được chọn để chạy CÙNG LÚC trên màn hình; rỗng = chưa chọn cái nào
   unlockedChibiCodes  : new Set(), // mã các chibi tài khoản đã mở khoá (lấy từ server, bảng user_chibis)
   chibisLoaded        : false,
-  gold                : 0,         // số vàng của tài khoản (lấy từ server qua /api/chibis)
-  shopOutdated        : false,     // true = backend đang chạy là bản cũ (không trả "price") -> cửa hàng không dùng được
-  chibiPrices         : {},        // giá từng chibi trong cửa hàng {mã: số vàng} (server trả về; 0 = không bán)
-  serverChibiCodes    : new Set(), // mã các chibi có trong CSDL (chỉ bán những chibi này)
-  shopBuying          : "",        // mã chibi đang được mua (để khoá nút, tránh bấm 2 lần)
   gameHistory         : [],
   gameHistorySummary  : null,
   gameHistoryLoaded   : false,
@@ -150,7 +145,7 @@ function applyChibiRunnerState(){
 // Backend hiện không có token phiên, nên ta chỉ lưu username + dữ liệu hiển thị (không lưu mật khẩu),
 // rồi khi tải lại trang sẽ gọi API để xác thực & làm mới dữ liệu.
 const SESSION_KEY = "gz_session";
-const RESTORABLE_VIEWS = ["home", "games", "game", "friends", "messages", "chibi", "shop", "quests", "history"]; // các view hợp lệ để khôi phục sau F5
+const RESTORABLE_VIEWS = ["home", "games", "game", "friends", "messages", "chibi", "quests", "history"]; // các view hợp lệ để khôi phục sau F5
 
 function saveSession(){
   if (!s.username) return;
@@ -209,9 +204,6 @@ function logout(){
   s.activeChibiCodes = new Set();
   s.unlockedChibiCodes = new Set();
   s.chibisLoaded = false;
-  s.gold = 0;
-  s.serverChibiCodes = new Set();
-  s.shopBuying = "";
   s.gameHistory = [];
   s.gameHistorySummary = null;
   s.gameHistoryLoaded = false;
@@ -1041,19 +1033,38 @@ function checkPasswordMatch(val) {
 }
 
 function leftPanel(){
+  const sq=(c)=>`<i style="background:${c}"></i>`;
   return `<aside class="left">
     <div class="gridbg gridbg-abs"></div>
     <div class="glow-gold glow-abs"></div>
+    <div class="ring ring-a"></div>
+    <div class="ring ring-b"></div>
     ${logo()}
-    <div class="left-main">
-      <div class="eyebrow">🎮 Game Online — Chơi ngay, thắng ngay</div>
-      <h1>Sẵn sàng<br><span>chiến chưa?</span></h1>
-      <p>Tham gia hàng ngàn game thủ mỗi ngày — đấu rank, leo bảng, nhận thưởng.</p>
-      <div class="stats">
-        <div class="stat"><b>84K+</b><small>Game thủ online</small></div>
-        <div class="stat"><b>Top 2</b><small>Server Việt Nam</small></div>
-        <div class="stat"><b>24/7</b><small>Máy chủ ổn định</small></div>
+    <div class="left-cards">
+      <div class="gcard gc-tetris">
+        <span class="gc-tag">ARCADE</span>
+        <div class="gc-art tetris-art">${sq("#22d3ee")}${sq("#a78bfa")}${sq("#fb923c")}${sq("#22d3ee")}</div>
+        <b class="gc-name">Tetris</b><small>Xếp khối · phá kỷ lục</small>
       </div>
+      <div class="gcard gc-chess">
+        <span class="gc-tag">CHIẾN THUẬT</span>
+        <div class="gc-art chess-art">♞</div>
+        <b class="gc-name">Cờ vua</b><small>Tính toán từng nước đi</small>
+      </div>
+      <div class="gcard gc-snake">
+        <span class="gc-tag">ARCADE</span>
+        <div class="gc-art"><svg viewBox="0 0 90 50" width="90" height="50"><path d="M6 40c12-6 14-24 26-24s10 18 22 14 10-12 22-10" fill="none" stroke="#34d399" stroke-width="9" stroke-linecap="round"/><circle cx="76" cy="20" r="2.6" fill="#0c0f1a"/></svg></div>
+        <b class="gc-name">Rắn săn mồi</b><small>Thu thập · lớn lên · sống sót</small>
+      </div>
+      <div class="gcard gc-2048">
+        <span class="gc-tag">PUZZLE</span>
+        <div class="gc-art tile-art"><i style="background:#c2703a">2</i><i style="background:#e0803a">4</i><i style="background:#8b5cf6">8</i><i style="background:#6d5ae6">16</i></div>
+        <b class="gc-name">2048</b><small>Ghép số để chiến thắng</small>
+      </div>
+    </div>
+    <div class="left-main">
+      <div class="eyebrow">Bộ sưu tập game của bạn</div>
+      <h1>Mỗi lần đăng nhập,<br><span>một ván mới</span></h1>
     </div>
     <div class="user-mini">
       <div class="avatar-sm">KG</div>
@@ -1483,17 +1494,13 @@ async function fetchChibis(){
     const data = await res.json();
     s.unlockedChibiCodes = new Set((data.chibis || []).filter(c => c.unlocked).map(c => c.code));
     s.chibisLoaded = true;
-    s.gold = Number(data.gold) || 0;
-    s.shopOutdated = (data.chibis || []).length > 0 && !(data.chibis || []).some(c => c.price !== undefined);
-    s.chibiPrices = Object.fromEntries((data.chibis || []).map(c => [c.code, Number(c.price) || 0]));
-    s.serverChibiCodes = new Set((data.chibis || []).map(c => c.code));
     // Chibi chưa mở khoá thì không được phép chạy trên màn hình.
     let changed = false;
     for (const code of Array.from(s.activeChibiCodes)) {
       if (!s.unlockedChibiCodes.has(code)) { s.activeChibiCodes.delete(code); changed = true; }
     }
     if (changed) { applyChibiRunnerState(); saveSession(); }
-    if (s.view === "chibi" || s.view === "shop") render();
+    if (s.view === "chibi") render();
   } catch (err) {
     console.error("Lỗi lấy danh sách chibi:", err);
   }
@@ -1660,109 +1667,6 @@ function chibiView(){
   </div>`;
 }
 
-// ===================== CỬA HÀNG CHIBI =====================
-// Hiện các chibi tài khoản CHƯA sở hữu; mua chibi tốn số vàng theo giá từng chibi (server kiểm tra lại, không tin trình duyệt).
-// Chỉ bán chibi có ảnh và có trong CSDL -> các ô "???" demo không xuất hiện trong cửa hàng.
-// Giá 1 chibi (vàng) theo server; 0 = không bán.
-function chibiPrice(code){ return s.chibiPrices[code] || 0; }
-
-function shopItems(){
-  return CHIBI_GALLERY.filter(c => c.frontImage && s.serverChibiCodes.has(c.code) && chibiPrice(c.code) > 0 && !isChibiUnlocked(c.code));
-}
-
-function shopCard(c){
-  const color = rarityColor[c.rarity] || "rgba(248,247,244,.4)";
-  const elem = c.element ? ELEMENT_TYPES[c.element] : null;
-  const tint = elem ? elem.color : "#8b5cf6";
-  const fallback = `chibi/${c.code}/${c.frameFileName ? c.frameFileName(1) : "1.png"}`;
-  const imgSrc = c.frontImage || fallback;
-  const price = chibiPrice(c.code);
-  const enough = s.gold >= price;
-  const buying = s.shopBuying === c.code;
-  const disabled = !enough || !!s.shopBuying;
-  return `<div class="chibi-card shop-card" style="--tint:${tint}">
-    <div class="chibi-card-top">
-      <span class="chibi-badge-rarity" style="color:${color};border-color:${color}66">${c.rarity}</span>
-    </div>
-    ${chibiStars(c.rarity)}
-    <div class="chibi-card-avatar-wrap">
-      <div class="chibi-card-avatar">
-        <img src="${esc(imgSrc)}" alt="${esc(c.name)}" onerror="this.onerror=null;this.src='${esc(fallback)}'">
-      </div>
-      ${elem ? `<span class="chibi-elem-badge" style="background:${elem.color}22;color:${elem.color}">${elem.icon}</span>` : ""}
-    </div>
-    <div class="chibi-card-name">${esc(c.name)}</div>
-    <div class="chibi-card-desc">${esc(c.desc)}</div>
-    <div class="shop-price">🪙 ${price} vàng</div>
-    <button type="button" class="chibi-use-btn shop-buy-btn${enough ? "" : " cant-afford"}" ${disabled ? "disabled" : ""}
-      onclick="buyChibi('${esc(c.code)}')">${buying ? "Đang mua..." : "Mua"}</button>
-    ${enough ? "" : `<div class="shop-need">Còn thiếu ${price - s.gold} vàng</div>`}
-  </div>`;
-}
-
-async function buyChibi(code){
-  if (!s.token || s.shopBuying) return;
-  const c = CHIBI_GALLERY.find(g => g.code === code);
-  if (!c || isChibiUnlocked(code)) return;
-  const price = chibiPrice(code);
-  if (price <= 0) return;
-  if (s.gold < price) { alert(`Bạn cần ${price} vàng để mua chibi này.`); return; }
-  if (!confirm(`Mua chibi ${c.name} với giá ${price} vàng?`)) return;
-
-  s.shopBuying = code;
-  render();
-  try {
-    const res = await authFetch(`${API_URL}/chibis/${encodeURIComponent(code)}/buy`, { method: "POST" });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (res.status === 400) alert("Bạn không đủ vàng để mua chibi này.");
-      else if (res.status === 409) alert("Bạn đã sở hữu chibi này rồi.");
-      else alert((data && data.detail) || "Mua chibi thất bại, vui lòng thử lại.");
-      fetchChibis(); // đồng bộ lại số vàng / chibi đã có theo server
-      return;
-    }
-    s.gold = Number(data.gold) || 0;
-    s.unlockedChibiCodes.add(code);
-    s.chibisLoaded = true;
-    alert(`Đã mua chibi ${c.name}! Vào mục Chibi để sử dụng nhé.`);
-  } catch (err) {
-    console.error("Lỗi mua chibi:", err);
-    alert("Không kết nối được máy chủ, vui lòng thử lại.");
-  } finally {
-    s.shopBuying = "";
-    render();
-  }
-}
-
-function shopView(){
-  const items = shopItems();
-  let body;
-  if (!s.chibisLoaded) {
-    body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-spin">◌</span> Đang tải cửa hàng...</div>`;
-  } else if (s.shopOutdated) {
-    body = `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">⚠️</span>Backend đang chạy là bản cũ (chưa có cửa hàng). Hãy tắt backend cũ rồi build và chạy lại bản mới.</div>`;
-  } else if (!items.length) {
-    // Còn chibi có ảnh mà chưa sở hữu nhưng không có trong danh sách bán -> không được nói là "đã sở hữu tất cả".
-    const stillLocked = CHIBI_GALLERY.some(c => c.frontImage && !isChibiUnlocked(c.code));
-    body = stillLocked
-      ? `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">🛒</span>Hiện chưa có chibi nào được bán trong cửa hàng.</div>`
-      : `<div class="nav-search-empty" style="padding:3rem 1rem"><span class="nav-search-empty-icon">🎉</span>Bạn đã sở hữu tất cả chibi trong cửa hàng!</div>`;
-  } else {
-    body = `<div class="chibi-grid">${items.map(shopCard).join("")}</div>`;
-  }
-  return `<div class="home fade">
-    <div class="gridbg fixed-grid"></div>
-    ${navBar()}
-    <main class="content">
-      <div class="section-title">Cửa hàng</div>
-      <div class="shop-header">
-        <div class="shop-gold">🪙 Vàng của bạn: <b>${s.gold}</b></div>
-      </div>
-      ${body}
-    </main>
-  </div>`;
-}
-
 function gamesView(){
   const displayName = s.nick || s.username || "GameThủ";
   const ini = displayName.slice(0, 2).toUpperCase();
@@ -1877,7 +1781,6 @@ function render(){
   else if(s.view==="nickname") app.innerHTML = nicknameView();
   else if(s.view==="games")    app.innerHTML = gamesView();
   else if(s.view==="chibi")    app.innerHTML = chibiView();
-  else if(s.view==="shop")     app.innerHTML = shopView();
   else if(s.view==="friends")  app.innerHTML = friendsView();
   else if(s.view==="messages") app.innerHTML = messagesView();
   else if(s.view==="quests")   app.innerHTML = questsView();
@@ -1927,7 +1830,7 @@ function go(view, gameId){
   if(view === "history") {
     fetchGameHistory();
   }
-  if(view === "chibi" || view === "shop") {
+  if(view === "chibi") {
     fetchChibis();
   }
   render();
@@ -2334,7 +2237,7 @@ function navBar(){
       <div class="navlinks">
         <span class="${s.view==='home'?'active':''}" onclick="go('home')" style="cursor:pointer">Hồ sơ</span>
         <span class="${gamesActive?'active':''}" onclick="go('games')" style="cursor:pointer">Chơi ngay</span>
-        <span class="${s.view==='shop'?'active':''}" onclick="go('shop')" style="cursor:pointer">Cửa hàng</span>
+        <span>Cửa hàng</span>
       </div>
       ${searchBox()}
       <div class="navuser">
