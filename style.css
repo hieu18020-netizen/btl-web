@@ -830,13 +830,28 @@ label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12
 .chibi-card.locked .chibi-card-avatar img.locked-img{filter:grayscale(1) brightness(.7)}
 .chibi-lock-badge{position:absolute;bottom:4px;right:4px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:#1a1a2e;box-shadow:0 0 0 3px #0a0a16}
 
-/* ===== Cửa hàng chibi ===== */
-.shop-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin:.25rem 0 1rem}
-.shop-gold{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .9rem;border-radius:999px;border:1px solid rgba(232,201,122,.45);background:rgba(232,201,122,.1);color:#e8c97a;font-size:13.5px;font-weight:600}
-.shop-gold b{color:#f8f7f4;font-size:15px}
-.shop-price{font-size:14px;font-weight:700;color:#e8c97a;text-align:center;margin-top:.15rem}
-.shop-buy-btn{background:linear-gradient(135deg,#e8c97a,#e8914a);border-color:transparent;color:#0c0f1a}
-.shop-buy-btn:hover:not(:disabled){filter:brightness(1.08);background:linear-gradient(135deg,#e8c97a,#e8914a);border-color:transparent}
-.shop-buy-btn:disabled{cursor:not-allowed;opacity:.55}
-.shop-buy-btn.cant-afford{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:rgba(248,247,244,.6)}
-.shop-need{font-size:11.5px;color:#f87171;text-align:center}
+
+/* ===== Panel trái: thẻ game nghiêng (trang đăng nhập / đăng ký) ===== */
+.left .ring{position:absolute;border:1px solid rgba(139,92,246,.12);border-radius:50%;pointer-events:none}
+.left .ring-a{width:620px;height:620px;left:-80px;top:80px}
+.left .ring-b{width:560px;height:560px;right:-120px;top:120px}
+.left-cards{position:relative;z-index:1;flex:1;min-height:460px;margin:1rem 0 0}
+.left-main{flex:0 0 auto;padding:1rem 0 1.5rem}
+.left-main .eyebrow{margin-bottom:.9rem;font-size:10px;letter-spacing:.22em}
+.left-main h1{margin:0}
+.gcard{position:absolute;width:165px;height:200px;padding:1rem 1.1rem;border-radius:22px;background:linear-gradient(160deg,rgba(30,32,56,.95),rgba(18,20,38,.95));border:1px solid rgba(139,92,246,.35);box-shadow:0 18px 40px rgba(0,0,0,.45),0 0 28px var(--gc,rgba(139,92,246,.18));display:flex;flex-direction:column;transition:transform .3s}
+.gcard:hover{transform:rotate(0deg) translateY(-6px) scale(1.04)!important}
+.gcard small{font-size:10px;color:rgba(248,247,244,.45);margin-top:3px}
+.gc-tag{font-size:9px;font-weight:700;letter-spacing:.16em;color:#a78bfa}
+.gc-art{flex:1;display:grid;place-items:center}
+.gc-name{font-family:Fraunces,Georgia,serif;font-size:1.35rem;font-weight:600}
+.gc-tetris{left:1%;top:0;transform:rotate(-6deg);--gc:rgba(34,211,238,.22)}
+.gc-chess{left:46%;top:2%;transform:rotate(6deg);--gc:rgba(250,204,21,.2);border-color:rgba(250,204,21,.3)}
+.gc-snake{left:14%;top:52%;transform:rotate(-5deg);--gc:rgba(52,211,153,.22);border-color:rgba(52,211,153,.35)}
+.gc-2048{left:58%;top:56%;transform:rotate(5deg);--gc:rgba(249,115,22,.2);border-color:rgba(249,115,22,.3)}
+.tetris-art{grid-template-columns:repeat(2,36px);gap:8px;align-content:center;justify-content:center}
+.tetris-art i{width:36px;height:36px;border-radius:9px;display:block}
+.chess-art{font-size:4.2rem;color:#facc15;text-shadow:0 0 22px rgba(250,204,21,.55)}
+.tile-art{grid-template-columns:repeat(2,36px);gap:8px;align-content:center;justify-content:center}
+.tile-art i{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:13px;color:#fff}
+@media(max-height:760px){.left-cards{min-height:400px}.gcard{width:150px;height:180px}}
