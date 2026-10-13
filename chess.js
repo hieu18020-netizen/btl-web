@@ -857,7 +857,9 @@ const ChessGame = (function () {
   function myPlayerInfo() {
     return {
       name: options.playerName || 'Ẩn danh',
-      avatar: options.playerAvatar || '',
+      // Ảnh đại diện dạng base64 có thể rất lớn (hàng chục KB) -> tin nhắn WebSocket quá giới hạn
+      // sẽ bị server ĐÓNG kết nối. Chỉ gửi kèm khi ảnh nhỏ; không thì để trống (hiện chữ cái đầu).
+      avatar: (options.playerAvatar && options.playerAvatar.length <= 6000) ? options.playerAvatar : '',
       score: Number(options.playerScore || 0)
     };
   }
