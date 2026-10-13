@@ -1762,6 +1762,10 @@ let lastView = null; // theo dõi view trước đó để biết đây có ph�
 
 function render(){
   const app = document.getElementById("app");
+  // Đang ở trong màn chơi game (cờ vua/tetris) mà có render() "ngầm" từ các nơi khác
+  // (tải hội thoại, thông tin người chơi, tin nhắn realtime...) thì KHÔNG dựng lại:
+  // dựng lại sẽ unmount game -> đóng WebSocket -> đối thủ nhận "đã rời phòng".
+  if (s.view === "game" && lastView === "game" && document.getElementById("gameMount")) return;
   if (typeof TetrisGame !== "undefined") {
     TetrisGame.unmount();
   }
